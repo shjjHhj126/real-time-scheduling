@@ -1,21 +1,24 @@
 #include "stream.h"
 
-void stream_init(stream *p)
+void list_init(list *p)
 {
     p->head = NULL;
+    p->count = 0;
 }
 
-int build_periodic_task_hashtable(stream *success, stream *fail)
+int build_periodic_task_hashtable(list *success, list *fail)
 {
     FILE *fd = fopen(periodic_task_input, "r");
-    if(!fd)
-        ERROR("open periodic task input file");
+    if(!fd) {
+        printf("ERROR : open periodic task input file\n");
+        return -1;
+    }
     char buffer[4096];
     int n;
-    while(fscanf(fd, "%s\n",buffer)) {
+    while(fgets(buffer, 4096, fd)) {
         task *node = malloc(sizeof(node));
         node->next = NULL;
-        int min_exe;
+        int min_exe = 0;
         for (n = 0;n<6;n++) {
             char *token;
             if(!(token = strtok(buffer, " ")))
@@ -48,15 +51,16 @@ int build_periodic_task_hashtable(stream *success, stream *fail)
         node->utilization = node->exe_time / node->period;
 
         memset(buffer, '\0', 4096);
-        fscanf(fd, "%s\n\n",buffer);
+        fgets(buffer, 4096, fd);
+        fscanf(fd, "\n");
         if(min_exe > node->exe_time || 
            node->exe_time > node->deadline ||
            !*buffer) {
             insert_head(&fail->head, node);
             continue;
         }
-        int job_num = (stream_time - phase) / period;
-        node->job = malloc(sizeof(job) * job_num);
+        int job_num = (stream_time - node->phase) / node->period;
+        node->job = malloc(sizeof(*node->job) * job_num);
         for(int i = 0;i < job_num;i++) {
             char *token;
             if(!(token = strtok(buffer, " ")))
@@ -64,18 +68,32 @@ int build_periodic_task_hashtable(stream *success, stream *fail)
             node->job[i] = atoi(token);
             token = strtok(NULL, " ");
         }
-        en_list(&success[node->utilization * 10].head, node);
+        success[(int)(node->utilization * 10)].head = NULL;
+        success[(int)(node->utilization * 10)].count++;
+        en_list(&success[(int)(node->utilization * 10)].head, node, utilization);
         continue;
 wrong_input :
         printf("ERROR : wrong number of parameter in periodic task\n");
         fclose(fd);
-        free(fd);
         free(node);
         return -1;
     }
     fclose(fd);
-    free(fd);
     return 1;
+}
+
+void free_list(list *a)
+{
+    if(!a)
+        return;
+    task *temp = a->head;
+    while(temp) {
+        a->head = temp->next;
+        free(temp->job);
+        free(temp);
+        temp = a->head;
+    }
+    a->count = 0;
 }
 
 void insert_head(task **head, task *node)
@@ -84,23 +102,29 @@ void insert_head(task **head, task *node)
     *head = node;
 }
 
-void en_list(task **head, task *node)
-{
-    task **temp = head;
-    while(*temp && (*temp)->utilization < node->utilization)
-        temp = &(*temp)->next;
-    node->next = *temp;
-    *temp = node;
-}
-
-task *get_min(stream *a)
+task *get_min(list *a)
 {
     for(int i=0;i < table_number;i++)
         if(a[i].head) {
             task *temp = a[i].head;
             a[i].head = temp->next;
             temp->next = NULL;
+            a[i].count--;
             return a[i].head;
         }
     return NULL;
 }
+
+task *task_cpy(const task *a) {
+    task *node = malloc(sizeof(*node));
+    node->utilization = a->utilization;
+    node->id = a->id;
+    node->phase = a->phase;
+    node->period = a->period;
+    node->exe_time = a->exe_time;
+    node->deadline = a->deadline;
+    node->job = malloc(sizeof(a->job));
+    memcpy(node->job, a->job, sizeof(a->job));
+    node->next = NULL;
+}
+

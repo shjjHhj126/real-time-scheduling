@@ -1,7 +1,11 @@
+#ifndef STREAM_H
+#define STREAM_H
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define stream_time 10000
-#define periodic_task_input OnlinejobsOfHRT.txt
+#define periodic_task_input "OnlinejobsOfHRT.txt"
 #define table_number 10
 
 typedef struct task { // periodic task
@@ -15,16 +19,30 @@ typedef struct task { // periodic task
     struct task *next;
 } task;
 
-typedef struct stream {
+typedef struct list {
+    unsigned int count;
     task *head;
-} stream;
+} list;
 
-void stream_init(stream *p);
+#define en_list(head, node, member)                    \
+    do {                                               \
+        task **temp = head;                            \
+        while(*temp && (*temp)->member < node->member) \
+            temp = &(*temp)->next;                     \
+        node->next = *temp;                            \
+        *temp = node;                                  \
+    } while(0)
 
-int build_periodic_task_hashtable(stream *success, stream *fail);
+void list_init(list *p);
+
+task *task_cpy(const task *a);
+
+int build_periodic_task_hashtable(list *success, list *fail);
+
+void free_list(list *a);
 
 void insert_head(task **head, task *node);
 
-void en_list(task **head, task *node);
+task *get_min(list *a);
 
-task *get_min(stream *a);
+#endif
