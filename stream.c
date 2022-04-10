@@ -13,16 +13,30 @@ int build_periodic_task_hashtable(list *success, list *fail)
         printf("ERROR : open periodic task input file\n");
         return -1;
     }
-    char buffer[4096];
+    char buffer[10000];
+    int task_num = 0;
+    while(fgets(buffer, 10000, fd))
+        task_num++;
+    fclose(fd);
+
+    fd = fopen(periodic_job_input, "r");
     int n;
-    while(fgets(buffer, 4096, fd)) {
-        task *node = malloc(sizeof(node));
+    for(;task_num;task_num--) {
+        if(!fgets(buffer, 10000, fd)) {
+            fclose(fd);
+            return 1;
+        }
+        task *node = malloc(sizeof(*node));
         node->next = NULL;
         int min_exe = 0;
+        char *token;
+        if(!(token = strtok(buffer, " "))) {
+            printf("ERROR : wrong number of parameter in periodic task\n");
+            fclose(fd);
+            free(node);
+            return -1;
+        }
         for (n = 0;n<6;n++) {
-            char *token;
-            if(!(token = strtok(buffer, " ")))
-                goto wrong_input;
             switch(n) {
                 case 0:
                     node->id = atoi(token);
@@ -48,39 +62,55 @@ int build_periodic_task_hashtable(list *success, list *fail)
         if(node->deadline > node->period)
             node->deadline = node->period;
 
-        node->utilization = node->exe_time / node->period;
+        node->utilization = (float)node->exe_time / node->period;
 
-        memset(buffer, '\0', 4096);
-        fgets(buffer, 4096, fd);
-        fscanf(fd, "\n");
+        memset(buffer, '\0', 10000);
+        fgets(buffer, 10000, fd);
         if(min_exe > node->exe_time || 
            node->exe_time > node->deadline ||
            !*buffer) {
+            memset(buffer, '\0', 10000);
             insert_head(&fail->head, node);
+            fail->count++;
+            if(task_num!=1)
+                fgets(buffer, 10000, fd);
             continue;
         }
-        int job_num = (stream_time - node->phase) / node->period;
+        int job_num = stream_time / node->period;
         node->job = malloc(sizeof(*node->job) * job_num);
+
+        if(!(token = strtok(buffer, " "))) {
+            printf("ERROR : wrong number of parameter in periodic task\n");
+            fclose(fd);
+            free(node);
+            return -1;
+        }
         for(int i = 0;i < job_num;i++) {
-            char *token;
-            if(!(token = strtok(buffer, " ")))
-                goto wrong_input;
             node->job[i] = atoi(token);
+            if(node->job[i] > node->exe_time ||
+               node->job[i] < min_exe) {
+                free(node->job);
+                memset(buffer, '\0', 10000);
+                insert_head(&fail->head, node);
+                fail->count++;
+                if(task_num!=1)
+                    fgets(buffer, 10000, fd);
+                continue;
+            }
             token = strtok(NULL, " ");
         }
-        success[(int)(node->utilization * 10)].head = NULL;
+        node->next = NULL;
         success[(int)(node->utilization * 10)].count++;
         en_list(&success[(int)(node->utilization * 10)].head, node, utilization);
-        continue;
-wrong_input :
-        printf("ERROR : wrong number of parameter in periodic task\n");
-        fclose(fd);
-        free(node);
-        return -1;
+        if(task_num!=1)
+            fgets(buffer, 10000, fd);
+        memset(buffer, '\0', 10000);
     }
     fclose(fd);
     return 1;
 }
+
+
 
 void free_list(list *a)
 {
@@ -110,21 +140,7 @@ task *get_min(list *a)
             a[i].head = temp->next;
             temp->next = NULL;
             a[i].count--;
-            return a[i].head;
+            return temp;
         }
     return NULL;
 }
-
-task *task_cpy(const task *a) {
-    task *node = malloc(sizeof(*node));
-    node->utilization = a->utilization;
-    node->id = a->id;
-    node->phase = a->phase;
-    node->period = a->period;
-    node->exe_time = a->exe_time;
-    node->deadline = a->deadline;
-    node->job = malloc(sizeof(a->job));
-    memcpy(node->job, a->job, sizeof(a->job));
-    node->next = NULL;
-}
-

@@ -1,6 +1,6 @@
 #include  "schedule.h"
 
-void print_periodic_info(schedule *plan, list *fail);
+//void print_periodic_info(schedule *plan, list *fail);
 
 int main() {
     list *success, p_fail;
@@ -12,7 +12,7 @@ int main() {
     schedule plan = periodic_task_schedule(success);
     for(int i=0;i < table_number;i++)
         free_list(&success[i]);
-    print_periodic_info(&plan, &fail);
+    //print_periodic_info(&plan, &fail);
     /* 
        add aperiodic and sporadic implement here
        */

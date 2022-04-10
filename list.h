@@ -32,10 +32,10 @@ extern "C" {
  * actual data. Such an container object is called entry. The helper list_entry
  * can be used to calculate the object address from the address of the node.
  */
-struct list_head {
+typedef struct list_head {
     struct list_head *prev;
     struct list_head *next;
-};
+} list_head;
 
 /**
  * container_of() - Calculate address of object that contains address ptr

@@ -5,7 +5,8 @@
 #include <stdlib.h>
 
 #define stream_time 10000
-#define periodic_task_input "OnlinejobsOfHRT.txt"
+#define periodic_job_input "OnlinejobsOfHRT.txt"
+#define periodic_task_input "TaskModel.txt"
 #define table_number 10
 
 typedef struct task { // periodic task
@@ -34,8 +35,6 @@ typedef struct list {
     } while(0)
 
 void list_init(list *p);
-
-task *task_cpy(const task *a);
 
 int build_periodic_task_hashtable(list *success, list *fail);
 

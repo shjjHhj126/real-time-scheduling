@@ -2,84 +2,31 @@
 
 schedule periodic_task_schedule(list *stream)
 {
-    int odd_n = 0, even_n = 0;
-    float odd_utilization = 0., even_utilization = 0.;
-    list odd, even;
-    list_init(&odd);
-    list_init(&even);
-
+    float utilization = 0.;
+    unsigned int hyperperiod = 0;
+    list p_list;
+    list_init(&p_list);
     task *node = get_min(stream);
     while(node) {
-        if(node->period & 1) {
-            int used = 0;
-            if(odd_utilization + node->utilization <= 1.) {
-                if(check_periodic_schedule(&odd, node)) {
-                    en_list(&odd.head, node, deadline);
-                    odd.count++;
-                    odd_n++;
-                    used = 1;
-                    odd_utilization += node->utilization;
-                }
+        if(utilization + node->utilization <= 1.) {
+            if(check_periodic_schedule(&p_list, &hyperperiod, node)) {
+                en_list(&p_list.head, node, deadline);
+                p_list.count++;
+                utilization += node->utilization;
             }
-            if(even_utilization + node->utilization <= 1.) {
-                if(check_periodic_schedule(&even, node)) {
-                    if(used) {
-                        task *n_node = task_cpy(node);
-                        en_list(&even.head, n_node, deadline);
-                    }
-                    else
-                        en_list(&even.head, node, deadline);
-                    even.count++;
-                    even_n++;
-                    even_utilization += node->utilization;
-                }
-            }
-        } else if(node->phase & 1) {
-            if(odd_utilization + node->utilization <= 1.) {
-                if(check_periodic_schedule(&odd, node)) {
-                    en_list(&odd.head, node, deadline);
-                    odd.count++;
-                    odd_n++;
-                    odd_utilization += node->utilization;
-                }
-            }
-        } else {
-            if(even_utilization + node->utilization <= 1.) {
-                if(check_periodic_schedule(&even, node)) {
-                    en_list(&even.head, node, deadline);
-                    even.count++;
-                    even_n++;
-                    even_utilization += node->utilization;
-                }
-            }
-        }
+        } else
+            break;
         node = get_min(stream);
     }
 
     schedule plan;
     schedule_init(&plan);
-
-    if(!(odd_n | even_n))
-        return plan;
-
-    if(odd_n > even_n ||
-        (odd_n == even_n && odd_utilization <= even_utilization)) {
-        free_list(&even);
-        plan.periodic_task.head = odd.head;
-        plan.periodic_task.count = odd.count;
-    } else {
-        free_list(&odd);
-        even_plan.periodic_task.head = even.head;
-        even_plan.periodic_task.count = even.count;
-    }
-    expand_schedule(&plan);
+    //expand_schedule(&plan);
     return plan;
 }
 
 void schedule_init(schedule *plan)
 {
-    INIT_LIST_HEAD(&plan->b_hyperperiod.job_list);
-    plan->b_hyperperiod.using_time = plan->b_hyperperiod.total_time = 0;
     plan->hyperperiod = malloc(sizeof(*plan->hyperperiod));
     plan->hyperperiod->using_time = plan->hyperperiod->total_time = 0;
     INIT_LIST_HEAD(&plan->hyperperiod->job_list);
@@ -93,14 +40,107 @@ void free_schedule(schedule *a) {
     free_list(&a->aperiodic_task);
     free_list(&a->sporadic_task);
     event *node, *safe;
-    list_for_each_entry_safe(node, safe, &a->b_hyperperiod.job_list, list)
-            free(node);
     for(int i=0;i<a->count; i++)
         list_for_each_entry_safe(node, safe, &a->hyperperiod[i].job_list, list)
             free(node);
     free(a->hyperperiod);
 }
 
-int check_periodic_schedule(list *p_list, task *node)
+int check_periodic_schedule(list *p_list, unsigned int *hyperperiod, task *node)
 {
+    *hyperperiod = cal_hyperperiod(*hyperperiod, node->period);
+    task *temp = p_list->head;
+    status *head = NULL;
+    for(int i=0; i < p_list->count; i++, temp = temp->next) {
+        status *n_node = malloc(sizeof(*n_node));
+        n_node->release_time = temp->phase;
+        n_node->deadline = temp->deadline + temp->phase;
+        n_node->remain_time = temp->exe_time;
+        n_node->info = temp;
+        n_node->next = NULL;
+        en_status_list(&head, n_node, deadline);
+    }
+    status *n_node = malloc(sizeof(*n_node));
+    n_node->release_time = node->phase;
+    n_node->deadline = node->deadline + node->phase;
+    n_node->remain_time = node->exe_time;
+    n_node->info = node;
+    n_node->next = NULL;
+    en_status_list(&head, n_node, deadline);
+    int time = 0;
+    while(head) {
+        status *now;
+        remove_head(head, now);
+        if(now->release_time > time) {
+            unsigned int diff = now->release_time - time;
+            while(diff) {
+                status *comp = head;
+                while(comp && comp->release_time > time)
+                    comp = comp->next;
+                if(comp) {
+                    int spend = update_status(comp, time, diff);
+                    if(spend < 0) {
+                        free(comp);
+                        while(head) {
+                            comp = head;
+                            head = head->next;
+                            free(comp);
+                        }
+                        return 0;
+                    } else {
+                        if(comp->deadline > stream_time) {
+                            remove_node(&head, comp);
+                            free(comp);
+                        }
+                        time += spend;
+                        diff -= spend;
+                    }
+                } else
+                    diff = 0;
+            }
+            time = now->release_time;
+        }
+        int spend = update_status(now, time, now->remain_time);
+        time += spend;
+        if(now->deadline > stream_time)
+            free(now);
+        else 
+            en_status_list(&head, now, deadline);
+    }
+    return 1;
+}
+
+int update_status(status *a, unsigned int now_time, unsigned int cost)
+{
+    int spend;
+    if(a->deadline + cost - now_time < 0)
+        return -1;
+    if(a->remain_time <= cost) {
+        spend = a->remain_time;
+        a->remain_time = a->info->exe_time;
+        a->release_time += a->info->period;
+        a->deadline += a->info->period;
+    } else {
+        spend = cost;
+        a->remain_time -= cost;
+    }
+    return spend;
+}
+
+unsigned int cal_hyperperiod(unsigned int a,unsigned int b)
+{
+    if(!a || !b)
+        return a | b;
+    unsigned int gcd = b;
+    while(a % gcd) {
+        unsigned int temp = a % gcd;
+        a = gcd;
+        gcd = temp;
+    }
+    return a * b / gcd;
+}
+
+void expand_schedule(schedule *plan)
+{
+    
 }
