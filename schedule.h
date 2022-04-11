@@ -1,5 +1,14 @@
 #include "stream.h"
 #include "list.h"
+
+
+#define swap(a, b) \
+    do {           \
+        b ^= a;    \
+        a ^= b;    \
+        b ^= a;    \
+    } while(0)
+
 typedef enum task_type {
     PERIODIC = 1,
     APERIODIC = 2,

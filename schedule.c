@@ -17,8 +17,11 @@ schedule periodic_task_schedule(list *stream)
                 free(node->job);
                 free(node);
             }
-        } else
+        } else {
+            free(node->job);
+            free(node);
             break;
+        }
         node = get_min(stream);
     }
     schedule plan;
@@ -79,19 +82,21 @@ int check_periodic_schedule(list *p_list, unsigned int *hyperperiod, task *node)
         if(now->deadline - now->remain_time < time) {
             free(now);
             while(head) {
-                status *del = head;
+               status *del = head;
                 head = head->next;
                 free(del);
             }
             return 0;
         }
-        status *comp = head;
         while(now->release_time > time) {
+            status *comp = head;
             while(comp && comp->release_time > time)
                  comp = comp->next;
             if(comp) {
+
                 int spend = update_status(comp, time,
                                           now->release_time - time);
+
                 if(spend < 0) {
                     while(head) {
                         status *del = head;
@@ -100,18 +105,18 @@ int check_periodic_schedule(list *p_list, unsigned int *hyperperiod, task *node)
                     }
                     return 0;
                 }
-                if(comp->deadline > lhyperperiod) {
-                    status *del = comp;
-                    comp = comp->next;
-                    remove_node(&head, del);
-                    free(del);
-                } else
-                    comp = comp->next;
+                remove_node(&head, comp);
+                if(comp->deadline > lhyperperiod + comp->info->phase) {
+                    free(comp);
+                } else {
+                    en_status_list(&head, comp, deadline);
+                }
                 time += spend;
             } else
                 time = now->release_time;
         }
         int spend = update_status(now, time, now->remain_time);
+
         time += spend;
         if(now->deadline > lhyperperiod + now->info->phase)
             free(now);
@@ -130,7 +135,9 @@ int update_status(status *a, unsigned int now_time, unsigned int cost)
         return -1;
     if(a->remain_time <= cost) {
         spend = a->remain_time;
-        a->remain_time = a->info->exe_time;
+        int num_of_period = (now_time + a->remain_time - a->info->phase) /
+                            a->info->period;
+        a->remain_time = a->info->job[num_of_period];
         a->release_time += a->info->period;
         a->deadline += a->info->period;
     } else {
@@ -144,11 +151,8 @@ unsigned int cal_hyperperiod(unsigned int a,unsigned int b)
 {
     if(!a || !b)
         return a | b;
-    if(b > a) {
-        b ^= a;
-        a ^= b;
-        b ^= a;
-    }
+    if(b > a)
+        swap(a, b);
     unsigned int hyperperiod = a * b;
     unsigned int gcd = b;
     while(a % gcd) {
@@ -192,8 +196,8 @@ void expand_schedule(schedule *plan, unsigned int hyperperiod)
     while(head) {
         status *now;
         remove_head(head, now);
-        status *comp = head;
         while(now->release_time > time) {
+            status *comp = head;
             while(comp && comp->release_time > time)
                comp = comp->next;
             if(comp) {
@@ -208,20 +212,20 @@ void expand_schedule(schedule *plan, unsigned int hyperperiod)
                 node->end_time = time + spend;
                 node->id = comp->info->id;
                 node->shift = node->shift - time - spend;
-                list_add_tail(&node->list,
-                              &plan->hyperperiod[now_period].job_list);
-                plan->hyperperiod[now_period].using_time += spend;
 
                 if(time > (now_period + 1) * hyperperiod)
                     now_period++;
 
+                list_add_tail(&node->list,
+                              &plan->hyperperiod[now_period].job_list);
+                plan->hyperperiod[now_period].using_time += spend;
+
+                remove_node(&head, comp);
                 if(comp->deadline > stream_time) {
-                    status *del = comp;
-                    comp = comp->next;
-                    remove_node(&head, del);
-                    free(del); 
-                } else
-                    comp = comp->next;
+                    free(comp);
+                } else {
+                    en_status_list(&head, comp, deadline);
+                }
                 time += spend;
             } else 
                 time = now->release_time;
@@ -235,12 +239,13 @@ void expand_schedule(schedule *plan, unsigned int hyperperiod)
         node->end_time = time + spend;
         node->id = now->info->id;
         node->shift = node->shift - time - spend;
-        list_add_tail(&node->list,
-                      &plan->hyperperiod[now_period].job_list);
-        plan->hyperperiod[now_period].using_time += spend;
 
         if(time > (now_period + 1) * hyperperiod)
             now_period++;
+
+        list_add_tail(&node->list,
+                      &plan->hyperperiod[now_period].job_list);
+        plan->hyperperiod[now_period].using_time += spend;
 
         time += spend;
         if(now->deadline > stream_time)
