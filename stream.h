@@ -4,12 +4,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define stream_time 10000
+#define stream_time 10000 // total time unit
 #define periodic_job_input "OnlinejobsOfHRT.txt"
 #define periodic_task_input "TaskModel.txt"
 #define table_number 10
 
-typedef struct task { // periodic task
+
+/*
+ * periodic task with all jobs' time and some task info
+ */
+typedef struct task {
     float utilization;
     unsigned int id,
                  phase,
@@ -20,11 +24,18 @@ typedef struct task { // periodic task
     struct task *next;
 } task;
 
+/* 
+ * task list for sorting and build a hash table
+ */
 typedef struct list {
     unsigned int count;
     task *head;
 } list;
 
+/*
+ * traversal the list 
+ * and decide the node position by compare member
+ */
 #define en_list(head, node, member)                    \
     do {                                               \
         task **temp = head;                            \

@@ -6,8 +6,16 @@ schedule periodic_task_schedule(list *stream)
     unsigned int hyperperiod = 0;
     list p_list;
     list_init(&p_list);
+    /*
+     * get the node with lowest utilization
+     */
     task *node = get_min(stream);
     while(node) {
+        /*
+         * if the total utilization is lower than 1,
+         * check if the task can be add into the list.
+         * else, end the scheduling
+         */
         if(utilization + node->utilization <= 1.) {
             if(check_periodic_schedule(&p_list, &hyperperiod, node)) {
                 en_list(&p_list.head, node, deadline);
@@ -59,6 +67,10 @@ int check_periodic_schedule(list *p_list, unsigned int *hyperperiod, task *node)
     lhyperperiod = cal_hyperperiod(lhyperperiod, node->period);
     task *temp = p_list->head;
     status *head = NULL;
+    /*
+     * change the task in the list to the status list
+     * use for check if the tasks in the list can be sheduled in a hyperperiod
+     */
     for(int i=0; i < p_list->count; i++, temp = temp->next) {
         status *n_node = malloc(sizeof(*n_node));
         n_node->release_time = temp->phase;
@@ -75,10 +87,17 @@ int check_periodic_schedule(list *p_list, unsigned int *hyperperiod, task *node)
     n_node->info = node;
     n_node->next = NULL;
     en_status_list(&head, n_node, deadline);
+
     int time = 0;
     while(head) {
+        /*
+         * get the task status with the lowest deadline
+         */
         status *now;
         remove_head(head, now);
+        /*
+         * check if the task is over the deadline
+         */
         if(now->deadline - now->remain_time < time) {
             free(now);
             while(head) {
@@ -88,15 +107,17 @@ int check_periodic_schedule(list *p_list, unsigned int *hyperperiod, task *node)
             }
             return 0;
         }
+        /*
+         * if the task with the lowest deadline has not reach its release time,
+         * find another task to fill the intervel time
+         */
         while(now->release_time > time) {
             status *comp = head;
             while(comp && comp->release_time > time)
                  comp = comp->next;
             if(comp) {
-
                 int spend = update_status(comp, time,
                                           now->release_time - time);
-
                 if(spend < 0) {
                     while(head) {
                         status *del = head;
@@ -115,6 +136,9 @@ int check_periodic_schedule(list *p_list, unsigned int *hyperperiod, task *node)
             } else
                 time = now->release_time;
         }
+        /*
+         * the release time is reached
+         */
         int spend = update_status(now, time, now->remain_time);
 
         time += spend;

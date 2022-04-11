@@ -15,6 +15,9 @@ int build_periodic_task_hashtable(list *success, list *fail)
     }
     char buffer[10000];
     int task_num = 0;
+    /* 
+     * read the txt file for calculate the task number
+     */
     while(fgets(buffer, 10000, fd))
         task_num++;
     fclose(fd);
@@ -29,6 +32,9 @@ int build_periodic_task_hashtable(list *success, list *fail)
         task *node = malloc(sizeof(*node));
         node->next = NULL;
         int min_exe = 0;
+        /*
+         * tokenize the buffer and assign to the corresponding vaiable in struct
+         */
         char *token;
         if(!(token = strtok(buffer, " "))) {
             printf("ERROR : wrong number of parameter in periodic task\n");
@@ -64,6 +70,9 @@ int build_periodic_task_hashtable(list *success, list *fail)
 
         node->utilization = (float)node->exe_time / node->period;
 
+        /*
+         * detect if the input file information has something wrong
+         */
         memset(buffer, '\0', 10000);
         fgets(buffer, 10000, fd);
         if(min_exe > node->exe_time || 
@@ -85,6 +94,9 @@ int build_periodic_task_hashtable(list *success, list *fail)
             free(node);
             return -1;
         }
+        /*
+         * fill the job information
+         */
         for(int i = 0;i < job_num;i++) {
             node->job[i] = atoi(token);
             if(node->job[i] > node->exe_time ||
@@ -132,6 +144,10 @@ void insert_head(task **head, task *node)
     *head = node;
 }
 
+/*
+ * find first element in the hash table
+ * if no element, return NULL
+ */
 task *get_min(list *a)
 {
     for(int i=0;i < table_number;i++)

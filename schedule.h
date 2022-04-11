@@ -15,17 +15,33 @@ typedef enum task_type {
     SPORADIC = 4
 } task_type;
 
+/*
+ * a node of the detailed timetable
+ * store the start time and end time and TASK ID
+ * can know this node is belong to which task in the stream
+ */
 typedef struct event {
     task_type type;
-    unsigned int start_time, end_time, id, shift;
+    unsigned int start_time,
+                 end_time,
+                 id,
+                 shift; // for knowing if we can delay this paet of job
     list_head list;
 } event;
 
+/*
+ * the detailed timetable of the jobs in the tasks
+ * store the total time and how much time we have used before
+ */
 typedef struct period {
     unsigned int using_time, total_time;
     list_head job_list;
 } period;
 
+/*
+ * store the result of the sheduler
+ * can know the clear sheduling information
+ */
 typedef struct schedule {
     unsigned int count;
     list periodic_task,
@@ -34,6 +50,10 @@ typedef struct schedule {
     period *hyperperiod;
 } schedule;
 
+/*
+ * node of a task situation
+ * used for checking if a list of tasks can be sheduling in a hyperperiod time
+ */
 typedef struct status {
     unsigned int remain_time,
                  release_time,
@@ -42,6 +62,9 @@ typedef struct status {
     struct status *next;
 } status;
 
+/*
+ * remove head from the status list
+ */
 #define remove_head(head, node) \
     do{                         \
         if(head) {              \
@@ -50,6 +73,9 @@ typedef struct status {
         }                       \
     } while(0)
 
+/*
+ * remove node from the status list
+ */
 #define remove_node(head, node)    \
     do {                           \
         status **temp = head;      \
@@ -58,7 +84,9 @@ typedef struct status {
         *temp = (*temp)->next;     \
     } while(0)
 
-
+/*
+ * insert node into the status list by compare member size
+ */
 #define en_status_list(head, node, member)             \
     do {                                               \
         status **temp = head;                          \
