@@ -43,15 +43,5 @@ void print_periodic_info(schedule *plan, list *fail)
     printf("(4) %d%\n", (int)using_time * 100 / stream_time);
     printf("(5)\n");
 
-    for(int i = 0; i < plan->count; i++) {
-        printf("the %dth period\n", i);
-        list_head *node;
-        list_for_each(node, &plan->hyperperiod[i].job_list) {
-            event *job = list_entry(node, event, list);
-            printf("ID :%3d starttime :%5d endtime :%5d %3d\n", job->id,
-                                                                job->start_time,
-                                                                job->end_time, 
-                                                                job->shift);
-        }
-    }
+    print_schedule(&plan->periodic_task, plan->hyperperiod->total_time);
 }

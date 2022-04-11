@@ -106,6 +106,10 @@ int check_periodic_schedule(list *p_list, unsigned int *hyperperiod,task *node);
 
 void expand_schedule(schedule *plan, unsigned int hyperperiod);
 
+void print_schedule(list *p_list, unsigned int hyperperiod);
+
 unsigned int cal_hyperperiod(unsigned int a,unsigned int b);
 
 int update_status(status *a, unsigned int now_time, unsigned int cost);
+
+int update_status_job(status *a, unsigned int now_time, unsigned int cost);

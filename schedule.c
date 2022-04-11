@@ -116,7 +116,7 @@ int check_periodic_schedule(list *p_list, unsigned int *hyperperiod, task *node)
             while(comp && comp->release_time > time)
                  comp = comp->next;
             if(comp) {
-                int spend = update_status(comp, time,
+                int spend = update_status_job(comp, time,
                                           now->release_time - time);
                 if(spend < 0) {
                     while(head) {
@@ -139,7 +139,7 @@ int check_periodic_schedule(list *p_list, unsigned int *hyperperiod, task *node)
         /*
          * the release time is reached
          */
-        int spend = update_status(now, time, now->remain_time);
+        int spend = update_status_job(now, time, now->remain_time);
 
         time += spend;
         if(now->deadline > lhyperperiod + now->info->phase)
@@ -152,6 +152,24 @@ int check_periodic_schedule(list *p_list, unsigned int *hyperperiod, task *node)
 }
 
 int update_status(status *a, unsigned int now_time, unsigned int cost)
+{
+    int spend;
+    int check = (int) a->deadline - a->remain_time - now_time;
+    if(check < 0)
+        return -1;
+    if(a->remain_time <= cost) {
+        spend = a->remain_time;
+        a->remain_time = a->info->exe_time;
+        a->release_time += a->info->period;
+        a->deadline += a->info->period;
+    } else {
+        spend = cost;
+        a->remain_time -= cost;
+    }
+    return spend;
+}
+
+int update_status_job(status *a, unsigned int now_time, unsigned int cost)
 {
     int spend;
     int check = (int) a->deadline - a->remain_time - now_time;
@@ -229,7 +247,7 @@ void expand_schedule(schedule *plan, unsigned int hyperperiod)
                 node->type = PERIODIC;
                 node->shift = comp->deadline;
 
-                int spend = update_status(comp, time, 
+                int spend = update_status_job(comp, time, 
                                                 now->release_time - time);
 
                 node->start_time = time;
@@ -257,7 +275,7 @@ void expand_schedule(schedule *plan, unsigned int hyperperiod)
         event *node = malloc(sizeof(*node));
         node->type = PERIODIC;
         node->shift = now->deadline;
-        int spend = update_status(now, time, now->remain_time);
+        int spend = update_status_job(now, time, now->remain_time);
 
         node->start_time = time;
         node->end_time = time + spend;
@@ -273,6 +291,72 @@ void expand_schedule(schedule *plan, unsigned int hyperperiod)
 
         time += spend;
         if(now->deadline > stream_time)
+            free(now);
+        else
+            en_status_list(&head, now, deadline);
+    }
+}
+
+void print_schedule(list *p_list, unsigned int hyperperiod)
+{
+    int now_period = 0;
+    printf("Period (0)\n");
+    task *temp = p_list->head;
+    status *head = NULL;
+    for(int i=0; i < p_list->count; i++, temp = temp->next) {
+        status *n_node = malloc(sizeof(*n_node));
+        n_node->release_time = temp->phase;
+        n_node->deadline = temp->deadline + temp->phase;
+        n_node->remain_time = temp->exe_time;
+        n_node->info = temp;
+        n_node->next = NULL;
+        en_status_list(&head, n_node, deadline);
+    }
+    unsigned int shift;
+    int time = 0;
+    while(head) {
+        status *now;
+        remove_head(head, now);
+        if(time > (now_period + 1) * hyperperiod)
+            printf("Period (%d)\n", ++now_period);
+        while(now->release_time > time) {
+            status *comp = head;
+            while(comp && comp->release_time > time)
+               comp = comp->next;
+            if(comp) {
+                shift = comp->deadline;
+                printf("ID:%3d, start time: %5d ", comp->info->id,
+                                                   time);
+                int spend = update_status(comp, time,
+                                          now->release_time - time);
+                printf("end time:%5d, shift:%3d\n", time + spend,
+                                                   shift - time - spend);
+
+                remove_node(&head, comp);
+                if(comp->deadline > hyperperiod * 3) {
+                    free(comp);
+                } else {
+                    en_status_list(&head, comp, deadline);
+                }
+                time += spend;
+                if(time > (now_period + 1) * hyperperiod)
+                    printf("Period (%d)\n", ++now_period);
+            } else
+                time = now->release_time;
+
+        }
+
+        if(time > (now_period + 1) * hyperperiod)
+            printf("Period (%d)\n", ++now_period);
+        shift = now->deadline;
+        printf("ID:%3d, start time: %5d ", now->info->id,
+                                            time);
+        int spend = update_status(now, time, now->remain_time);
+
+        printf("end time:%5d, shift:%3d\n", time + spend,
+                                           shift - time - spend);
+        time += spend;
+        if(now->deadline > hyperperiod * 3)
             free(now);
         else
             en_status_list(&head, now, deadline);
