@@ -13,21 +13,25 @@ schedule periodic_task_schedule(list *stream)
                 en_list(&p_list.head, node, deadline);
                 p_list.count++;
                 utilization += node->utilization;
+            } else {
+                free(node->job);
+                free(node);
             }
         } else
             break;
         node = get_min(stream);
     }
-
     schedule plan;
     schedule_init(&plan);
-    //expand_schedule(&plan);
+    plan.periodic_task.head = p_list.head;
+    plan.periodic_task.count = p_list.count;
+    expand_schedule(&plan, hyperperiod);
     return plan;
 }
 
 void schedule_init(schedule *plan)
 {
-    plan->hyperperiod = malloc(sizeof(*plan->hyperperiod));
+    plan->hyperperiod = malloc(sizeof(period));
     plan->hyperperiod->using_time = plan->hyperperiod->total_time = 0;
     INIT_LIST_HEAD(&plan->hyperperiod->job_list);
     plan->count = 0;
@@ -48,7 +52,8 @@ void free_schedule(schedule *a) {
 
 int check_periodic_schedule(list *p_list, unsigned int *hyperperiod, task *node)
 {
-    *hyperperiod = cal_hyperperiod(*hyperperiod, node->period);
+    int lhyperperiod = *hyperperiod;
+    lhyperperiod = cal_hyperperiod(lhyperperiod, node->period);
     task *temp = p_list->head;
     status *head = NULL;
     for(int i=0; i < p_list->count; i++, temp = temp->next) {
@@ -71,49 +76,57 @@ int check_periodic_schedule(list *p_list, unsigned int *hyperperiod, task *node)
     while(head) {
         status *now;
         remove_head(head, now);
-        if(now->release_time > time) {
-            unsigned int diff = now->release_time - time;
-            while(diff) {
-                status *comp = head;
-                while(comp && comp->release_time > time)
-                    comp = comp->next;
-                if(comp) {
-                    int spend = update_status(comp, time, diff);
-                    if(spend < 0) {
-                        free(comp);
-                        while(head) {
-                            comp = head;
-                            head = head->next;
-                            free(comp);
-                        }
-                        return 0;
-                    } else {
-                        if(comp->deadline > stream_time) {
-                            remove_node(&head, comp);
-                            free(comp);
-                        }
-                        time += spend;
-                        diff -= spend;
-                    }
-                } else
-                    diff = 0;
+        if(now->deadline - now->remain_time < time) {
+            free(now);
+            while(head) {
+                status *del = head;
+                head = head->next;
+                free(del);
             }
-            time = now->release_time;
+            return 0;
+        }
+        status *comp = head;
+        while(now->release_time > time) {
+            while(comp && comp->release_time > time)
+                 comp = comp->next;
+            if(comp) {
+                int spend = update_status(comp, time,
+                                          now->release_time - time);
+                if(spend < 0) {
+                    while(head) {
+                        status *del = head;
+                        head = head->next;
+                        free(del);
+                    }
+                    return 0;
+                }
+                if(comp->deadline > lhyperperiod) {
+                    status *del = comp;
+                    comp = comp->next;
+                    remove_node(&head, del);
+                    free(del);
+                } else
+                    comp = comp->next;
+                time += spend;
+            } else
+                time = now->release_time;
         }
         int spend = update_status(now, time, now->remain_time);
         time += spend;
-        if(now->deadline > stream_time)
+        if(now->deadline > lhyperperiod + now->info->phase)
             free(now);
         else 
             en_status_list(&head, now, deadline);
     }
+    *hyperperiod = lhyperperiod;
     return 1;
 }
 
 int update_status(status *a, unsigned int now_time, unsigned int cost)
 {
     int spend;
-    if(a->deadline + cost - now_time < 0)
+    int check = (int) a->deadline - a->remain_time - now_time;
+    if(check < 0)
         return -1;
     if(a->remain_time <= cost) {
         spend = a->remain_time;
@@ -131,16 +144,108 @@ unsigned int cal_hyperperiod(unsigned int a,unsigned int b)
 {
     if(!a || !b)
         return a | b;
+    if(b > a) {
+        b ^= a;
+        a ^= b;
+        b ^= a;
+    }
+    unsigned int hyperperiod = a * b;
     unsigned int gcd = b;
     while(a % gcd) {
         unsigned int temp = a % gcd;
         a = gcd;
         gcd = temp;
     }
-    return a * b / gcd;
+    hyperperiod /= gcd;
+    return hyperperiod;
 }
 
-void expand_schedule(schedule *plan)
+void expand_schedule(schedule *plan, unsigned int hyperperiod)
 {
-    
+    int ncomplete_period = stream_time % hyperperiod;
+    int now_period = 0;
+    int num_of_period = stream_time / hyperperiod;
+    plan->count = num_of_period + (ncomplete_period != 0);
+    plan->hyperperiod = malloc(sizeof(period) * plan->count);
+    for(int i = 0;i < num_of_period;i++) {
+        plan->hyperperiod[i].using_time = 0;
+        plan->hyperperiod[i].total_time = hyperperiod;
+        INIT_LIST_HEAD(&plan->hyperperiod[i].job_list);
+    }
+    if(stream_time % hyperperiod) {
+        plan->hyperperiod[num_of_period].using_time = 0;
+        plan->hyperperiod[num_of_period].total_time = ncomplete_period;
+        INIT_LIST_HEAD(&plan->hyperperiod[num_of_period].job_list);
+    }
+    task *temp = plan->periodic_task.head;
+    status *head = NULL;
+    for(int i=0; i < plan->periodic_task.count; i++, temp = temp->next) {
+        status *n_node = malloc(sizeof(*n_node));
+        n_node->release_time = temp->phase;
+        n_node->deadline = temp->deadline + temp->phase;
+        n_node->remain_time = temp->exe_time;
+        n_node->info = temp;
+        n_node->next = NULL;
+        en_status_list(&head, n_node, deadline);
+    }
+    int time = 0;
+    while(head) {
+        status *now;
+        remove_head(head, now);
+        status *comp = head;
+        while(now->release_time > time) {
+            while(comp && comp->release_time > time)
+               comp = comp->next;
+            if(comp) {
+                event *node = malloc(sizeof(*node));
+                node->type = PERIODIC;
+                node->shift = comp->deadline;
+
+                int spend = update_status(comp, time, 
+                                                now->release_time - time);
+
+                node->start_time = time;
+                node->end_time = time + spend;
+                node->id = comp->info->id;
+                node->shift = node->shift - time - spend;
+                list_add_tail(&node->list,
+                              &plan->hyperperiod[now_period].job_list);
+                plan->hyperperiod[now_period].using_time += spend;
+
+                if(time > (now_period + 1) * hyperperiod)
+                    now_period++;
+
+                if(comp->deadline > stream_time) {
+                    status *del = comp;
+                    comp = comp->next;
+                    remove_node(&head, del);
+                    free(del); 
+                } else
+                    comp = comp->next;
+                time += spend;
+            } else 
+                time = now->release_time;
+        }
+        event *node = malloc(sizeof(*node));
+        node->type = PERIODIC;
+        node->shift = now->deadline;
+        int spend = update_status(now, time, now->remain_time);
+
+        node->start_time = time;
+        node->end_time = time + spend;
+        node->id = now->info->id;
+        node->shift = node->shift - time - spend;
+        list_add_tail(&node->list,
+                      &plan->hyperperiod[now_period].job_list);
+        plan->hyperperiod[now_period].using_time += spend;
+
+        if(time > (now_period + 1) * hyperperiod)
+            now_period++;
+
+        time += spend;
+        if(now->deadline > stream_time)
+            free(now);
+        else
+            en_status_list(&head, now, deadline);
+    }
 }

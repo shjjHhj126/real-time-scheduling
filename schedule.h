@@ -8,7 +8,7 @@ typedef enum task_type {
 
 typedef struct event {
     task_type type;
-    unsigned int start_time, end_time, id;
+    unsigned int start_time, end_time, id, shift;
     list_head list;
 } event;
 
@@ -67,7 +67,7 @@ void free_schedule(schedule *a);
 
 int check_periodic_schedule(list *p_list, unsigned int *hyperperiod,task *node);
 
-void expand_schedule(schedule *plan);
+void expand_schedule(schedule *plan, unsigned int hyperperiod);
 
 unsigned int cal_hyperperiod(unsigned int a,unsigned int b);
 
