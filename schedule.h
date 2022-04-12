@@ -43,7 +43,7 @@ typedef struct period {
  * can know the clear sheduling information
  */
 typedef struct schedule {
-    unsigned int count;
+    unsigned int count, period;
     list periodic_task,
          aperiodic_task,
          sporadic_task;

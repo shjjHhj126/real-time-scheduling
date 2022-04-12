@@ -36,12 +36,12 @@ void print_periodic_info(schedule *plan, list *fail)
         if(node->next)
             printf(", ");
     }
-    printf(".\n(3) Hyper-period: %d\n", plan->hyperperiod->total_time);
+    printf(".\n(3) Hyper-period: %d\n", plan->period);
     int using_time = 0;
     for(int i = 0; i < plan->count; i++)
         using_time += plan->hyperperiod[i].using_time;
     printf("(4) %d%\n", (int)using_time * 100 / stream_time);
     printf("(5)\n");
 
-    print_schedule(&plan->periodic_task, plan->hyperperiod->total_time);
+    print_schedule(&plan->periodic_task, plan->period);
 }

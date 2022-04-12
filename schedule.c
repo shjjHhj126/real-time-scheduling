@@ -34,6 +34,7 @@ schedule periodic_task_schedule(list *stream)
     }
     schedule plan;
     schedule_init(&plan);
+    plan.period = hyperperiod;
     plan.periodic_task.head = p_list.head;
     plan.periodic_task.count = p_list.count;
     expand_schedule(&plan, hyperperiod);
@@ -101,7 +102,7 @@ int check_periodic_schedule(list *p_list, unsigned int *hyperperiod, task *node)
         if(now->deadline - now->remain_time < time) {
             free(now);
             while(head) {
-               status *del = head;
+                status *del = head;
                 head = head->next;
                 free(del);
             }
@@ -116,7 +117,7 @@ int check_periodic_schedule(list *p_list, unsigned int *hyperperiod, task *node)
             while(comp && comp->release_time > time)
                  comp = comp->next;
             if(comp) {
-                int spend = update_status_job(comp, time,
+                int spend = update_status(comp, time,
                                           now->release_time - time);
                 if(spend < 0) {
                     while(head) {
@@ -139,7 +140,7 @@ int check_periodic_schedule(list *p_list, unsigned int *hyperperiod, task *node)
         /*
          * the release time is reached
          */
-        int spend = update_status_job(now, time, now->remain_time);
+        int spend = update_status(now, time, now->remain_time);
 
         time += spend;
         if(now->deadline > lhyperperiod + now->info->phase)
@@ -208,20 +209,16 @@ unsigned int cal_hyperperiod(unsigned int a,unsigned int b)
 
 void expand_schedule(schedule *plan, unsigned int hyperperiod)
 {
-    int ncomplete_period = stream_time % hyperperiod;
     int now_period = 0;
-    int num_of_period = stream_time / hyperperiod;
-    plan->count = num_of_period + (ncomplete_period != 0);
+    plan->count = stream_time / hyperperiod + !!(stream_time % hyperperiod);
     plan->hyperperiod = malloc(sizeof(period) * plan->count);
-    for(int i = 0;i < num_of_period;i++) {
+    for(int i = 0; i < plan->count;i++){
         plan->hyperperiod[i].using_time = 0;
-        plan->hyperperiod[i].total_time = hyperperiod;
+        if(i != plan->count - 1)
+            plan->hyperperiod[i].total_time = hyperperiod;
+        else 
+            plan->hyperperiod[i].total_time = stream_time % hyperperiod;
         INIT_LIST_HEAD(&plan->hyperperiod[i].job_list);
-    }
-    if(stream_time % hyperperiod) {
-        plan->hyperperiod[num_of_period].using_time = 0;
-        plan->hyperperiod[num_of_period].total_time = ncomplete_period;
-        INIT_LIST_HEAD(&plan->hyperperiod[num_of_period].job_list);
     }
     task *temp = plan->periodic_task.head;
     status *head = NULL;
