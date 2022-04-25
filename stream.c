@@ -109,6 +109,16 @@ int build_periodic_task_hashtable(list *success, list *fail)
                     fgets(buffer, 10000, fd);
                 continue;
             }
+            /*
+             * 1. select tasks with prime factors < 10
+             * 2. calculate frame size, hyperperiod
+             */
+            printf("romoved by task_selection():");
+            if (task_selection(node) == false)
+            {
+                printf("task_id:", node->id, " ,period", node->period, "\n");
+                continue;
+            }
             token = strtok(NULL, " ");
         }
         node->next = NULL;
@@ -160,3 +170,16 @@ task *get_min(list *a)
         }
     return NULL;
 }
+
+bool task_selection(task *node)
+{
+    if (node->period <= prime_factor[pf_limit])
+        return true;
+    bool tf = false;
+    for (int i = 2; i <= prime_factor[pf_limit + 1]; i++)
+    {
+        if (node->period % i == 0)
+            tf = true;
+    }
+    return tf;
+};
