@@ -3,11 +3,16 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
+#include <math.h>
 
 #define stream_time 10000 // total time unit
 #define periodic_job_input "OnlinejobsOfHRT.txt"
 #define periodic_task_input "TaskModel.txt"
 #define table_number 10
+#define pf_limit 3 // prime_factor[3]=7
+int prime_factor[] = {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 97};
+int prime_factor_len = 23;
 
 
 /*
@@ -54,5 +59,7 @@ void free_list(list *a);
 void insert_head(task **head, task *node);
 
 task *get_min(list *a);
+
+bool task_selection(task *node);
 
 #endif
