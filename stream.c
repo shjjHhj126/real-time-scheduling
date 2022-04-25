@@ -176,7 +176,7 @@ bool task_selection(task *node)
     if (node->period <= prime_factor[pf_limit])
         return true;
     bool tf = false;
-    for (int i = 2; i <= prime_factor[pf_limit + 1]; i++)
+    for (int i = 2; i <= prime_factor[prime_factor_len-1]; i++)
     {
         if (node->period % i == 0)
             tf = true;
