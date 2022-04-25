@@ -64,8 +64,10 @@ void free_schedule(schedule *a) {
 
 int check_periodic_schedule(list *p_list, unsigned int *hyperperiod, task *node)
 {
-    int lhyperperiod = *hyperperiod;
+    unsigned int lhyperperiod = *hyperperiod;
     lhyperperiod = cal_hyperperiod(lhyperperiod, node->period);
+    if(lhyperperiod < *hyperperiod)
+        return 0;
     task *temp = p_list->head;
     status *head = NULL;
     /*
@@ -190,7 +192,7 @@ int update_status_job(status *a, unsigned int now_time, unsigned int cost)
     return spend;
 }
 
-unsigned int cal_hyperperiod(unsigned int a,unsigned int b)
+unsigned int cal_hyperperiod(unsigned int a, unsigned int b)
 {
     if(!a || !b)
         return a | b;
@@ -326,7 +328,7 @@ void print_schedule(list *p_list, unsigned int hyperperiod)
                                                    time);
                 int spend = update_status(comp, time,
                                           now->release_time - time);
-                printf("end time:%5d, shift:%3d\n", time + spend,
+                printf("end time: %5d, shift:%3d\n", time + spend,
                                                    shift - time - spend);
 
                 remove_node(&head, comp);
@@ -350,7 +352,7 @@ void print_schedule(list *p_list, unsigned int hyperperiod)
                                             time);
         int spend = update_status(now, time, now->remain_time);
 
-        printf("end time:%5d, shift:%3d\n", time + spend,
+        printf("end time: %5d, shift:%3d\n", time + spend,
                                            shift - time - spend);
         time += spend;
         if(now->deadline > hyperperiod * 3)

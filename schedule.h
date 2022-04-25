@@ -25,7 +25,7 @@ typedef struct event {
     unsigned int start_time,
                  end_time,
                  id,
-                 shift; // for knowing if we can delay this paet of job
+                 shift; // knowing if we can delay this part of job
     list_head list;
 } event;
 
@@ -102,13 +102,13 @@ void schedule_init(schedule *plan);
 
 void free_schedule(schedule *a);
 
-int check_periodic_schedule(list *p_list, unsigned int *hyperperiod,task *node);
+int check_periodic_schedule(list *p_list, unsigned int *hyperperiod, task *node);
 
 void expand_schedule(schedule *plan, unsigned int hyperperiod);
 
 void print_schedule(list *p_list, unsigned int hyperperiod);
 
-unsigned int cal_hyperperiod(unsigned int a,unsigned int b);
+unsigned int cal_hyperperiod(unsigned int a, unsigned int b);
 
 int update_status(status *a, unsigned int now_time, unsigned int cost);
 
